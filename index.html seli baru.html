@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Deteksi Makanan Layak Konsumsi</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #ffe6f0, #f9f3ff);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 20px;
+      width: 90%;
+      max-width: 500px;
+      text-align: center;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      transition: transform 0.3s ease;
+    }
+
+    .container:hover {
+      transform: scale(1.01);
+    }
+
+    h1 {
+      color: #d63384;
+      margin-bottom: 10px;
+      text-shadow: 1px 1px 3px #ccc;
+    }
+
+    p {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 20px;
+    }
+
+    button {
+      background-color: #ff4d88;
+      color: white;
+      border: none;
+      padding: 12px 26px;
+      font-size: 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      margin-bottom: 20px;
+      transition: background-color 0.3s ease, transform 0.2s ease;
+    }
+
+    button:hover {
+      background-color: #e6005c;
+      transform: scale(1.05);
+    }
+
+    button i {
+      margin-right: 8px;
+    }
+
+    #webcam-container canvas {
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+
+    .bar-container {
+      width: 100%;
+      background-color: #eee;
+      border-radius: 10px;
+      margin: 10px 0;
+      overflow: hidden;
+    }
+
+    .bar {
+      height: 24px;
+      text-align: right;
+      padding-right: 10px;
+      line-height: 24px;
+      font-weight: bold;
+      font-size: 13px;
+      color: white;
+      transition: width 0.8s ease;
+    }
+
+    .layak {
+      background-color: #28a745;
+    }
+
+    .tidak-layak {
+      background-color: #dc3545;
+    }
+
+    .hasil {
+      font-size: 24px;
+      margin-top: 25px;
+      font-weight: bold;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+
+    .hasil.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .hasil.success {
+      color: #28a745;
+    }
+
+    .hasil.fail {
+      color: #dc3545;
+    }
+
+    footer {
+      margin-top: 25px;
+      font-size: 12px;
+      color: #666;
+    }
+
+    @media (max-width: 600px) {
+      .container {
+        padding: 20px;
+      }
+
+      button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Deteksi Makanan Layak Konsumsi</h1>
+    <p>Klik tombol di bawah untuk memulai deteksi menggunakan kamera</p>
+    <button onclick="init()"><i class="fas fa-camera"></i>Aktifkan Kamera</button>
+    <div id="webcam-container"></div>
+    <div id="label-container"></div>
+    <div id="hasil" class="hasil"></div>
+    <footer>Dibuat oleh Seli Pebrianti – 2025</footer>
+  </div>
+
+  <script type="text/javascript">
+    const URL = "https://teachablemachine.withgoogle.com/models/JGaKEwPQ3/";
+    let model, webcam, labelContainer, maxPredictions;
+
+    async function init() {
+      const modelURL = URL + "model.json";
+      const metadataURL = URL + "metadata.json";
+
+      model = await tmImage.load(modelURL, metadataURL);
+      maxPredictions = model.getTotalClasses();
+
+      webcam = new tmImage.Webcam(200, 200, true);
+      await webcam.setup();
+      await webcam.play();
+      window.requestAnimationFrame(loop);
+
+      document.getElementById("webcam-container").innerHTML = "";
+      document.getElementById("webcam-container").appendChild(webcam.canvas);
+      labelContainer = document.getElementById("label-container");
+    }
+
+    async function loop() {
+      webcam.update();
+      await predict();
+      window.requestAnimationFrame(loop);
+    }
+
+    async function predict() {
+      const prediction = await model.predict(webcam.canvas);
+      const probLayak = prediction.find(p => p.className.toUpperCase().includes("LAYAK")).probability;
+      const probTidakLayak = prediction.find(p => p.className.toUpperCase().includes("TIDAK")).probability;
+
+      const html = `
+        <div><strong>MAKANAN LAYAK KONSUMSI:</strong> ${(probLayak * 100).toFixed(2)}%</div>
+        <div class="bar-container">
+          <div class="bar layak" style="width:${(probLayak * 100).toFixed(2)}%;">${(probLayak * 100).toFixed(2)}%</div>
+        </div>
+
+        <div><strong>MAKANAN TIDAK LAYAK KONSUMSI:</strong> ${(probTidakLayak * 100).toFixed(2)}%</div>
+        <div class="bar-container">
+          <div class="bar tidak-layak" style="width:${(probTidakLayak * 100).toFixed(2)}%;">${(probTidakLayak * 100).toFixed(2)}%</div>
+        </div>
+      `;
+      labelContainer.innerHTML = html;
+
+      const hasilDiv = document.getElementById("hasil");
+      hasilDiv.classList.remove("show", "success", "fail");
+
+      if (probLayak > probTidakLayak) {
+        hasilDiv.innerHTML = "✅ Makanan Layak Konsumsi";
+        hasilDiv.classList.add("success", "show");
+      } else {
+        hasilDiv.innerHTML = "❌ Makanan Tidak Layak Konsumsi";
+        hasilDiv.classList.add("fail", "show");
+      }
+    }
+  </script>
+</body>
+</html>
